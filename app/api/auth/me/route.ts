@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
+import type { User } from '@/lib/types';
 
 export async function GET() {
 	try {
@@ -11,23 +12,11 @@ export async function GET() {
 		}
 
 		// Fetch full user profile from database
-		const user = await prisma.user.findUnique({
-			where: { id: session.userId },
-			select: {
-				id: true,
-				username: true,
-				name: true,
-				email: true,
-				phone: true,
-				jobTitle: true,
-				department: true,
-				profileImage: true,
-				role: true,
-				mustResetPassword: true,
-				passwordResetRequested: true,
-				createdAt: true,
-			},
-		});
+		const user = await queryOne<User>(
+			`SELECT id, username, name, email, phone, "jobTitle", department, "profileImage", role, "mustResetPassword", "passwordResetRequested", "createdAt"
+			 FROM "User" WHERE id = $1`,
+			[session.userId]
+		);
 
 		if (!user) {
 			return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -83,28 +72,31 @@ export async function PUT(request: Request) {
 		}
 
 		// Update user profile
-		const updatedUser = await prisma.user.update({
-			where: { id: session.userId },
-			data: {
-				name: name.trim(),
-				email: email?.trim() || null,
-				phone: phone ? phone.replace(/\D/g, '') : null,
-				jobTitle: jobTitle?.trim() || null,
-				department: department?.trim() || null,
-				profileImage: profileImage || null,
-			},
-			select: {
-				id: true,
-				username: true,
-				name: true,
-				email: true,
-				phone: true,
-				jobTitle: true,
-				department: true,
-				profileImage: true,
-				role: true,
-			},
-		});
+		const updatedUser = await queryOne<User>(
+			`UPDATE "User" SET
+				name = $1,
+				email = $2,
+				phone = $3,
+				"jobTitle" = $4,
+				department = $5,
+				"profileImage" = $6,
+				"updatedAt" = NOW()
+			 WHERE id = $7
+			 RETURNING id, username, name, email, phone, "jobTitle", department, "profileImage", role`,
+			[
+				name.trim(),
+				email?.trim() || null,
+				phone ? phone.replace(/\D/g, '') : null,
+				jobTitle?.trim() || null,
+				department?.trim() || null,
+				profileImage || null,
+				session.userId,
+			]
+		);
+
+		if (!updatedUser) {
+			return NextResponse.json({ error: 'User not found' }, { status: 404 });
+		}
 
 		return NextResponse.json({
 			userId: updatedUser.id,

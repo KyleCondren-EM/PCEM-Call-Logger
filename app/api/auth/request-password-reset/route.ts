@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
 
 // POST - Request a password reset (user-initiated, works logged in or with username)
 export async function POST(request: Request) {
@@ -21,10 +21,10 @@ export async function POST(request: Request) {
 			}
 
 			// Find the user by username
-			const user = await prisma.user.findUnique({
-				where: { username: username.toUpperCase() },
-				select: { id: true },
-			});
+			const user = await queryOne<{ id: string }>(
+				`SELECT id FROM "User" WHERE username = $1`,
+				[username.toUpperCase()]
+			);
 
 			if (!user) {
 				// Don't reveal if user exists or not for security
@@ -35,13 +35,14 @@ export async function POST(request: Request) {
 		}
 
 		// Update the user's password reset request status
-		await prisma.user.update({
-			where: { id: userId },
-			data: {
-				passwordResetRequested: true,
-				passwordResetRequestedAt: new Date(),
-			},
-		});
+		await query(
+			`UPDATE "User" SET
+				"passwordResetRequested" = true,
+				"passwordResetRequestedAt" = NOW(),
+				"updatedAt" = NOW()
+			 WHERE id = $1`,
+			[userId]
+		);
 
 		return NextResponse.json({ message: 'Password reset requested successfully' });
 	} catch (error) {
@@ -59,13 +60,14 @@ export async function DELETE() {
 		}
 
 		// Clear the user's password reset request
-		await prisma.user.update({
-			where: { id: session.userId as string },
-			data: {
-				passwordResetRequested: false,
-				passwordResetRequestedAt: null,
-			},
-		});
+		await query(
+			`UPDATE "User" SET
+				"passwordResetRequested" = false,
+				"passwordResetRequestedAt" = NULL,
+				"updatedAt" = NOW()
+			 WHERE id = $1`,
+			[session.userId as string]
+		);
 
 		return NextResponse.json({ message: 'Password reset request cancelled' });
 	} catch (error) {

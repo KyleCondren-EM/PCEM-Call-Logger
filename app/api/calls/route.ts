@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activityLog';
+import type { Call } from '@/lib/types';
+
+interface CallWithCallTaker extends Call {
+	callTakerName: string;
+	callTakerUsername: string;
+}
 
 export async function GET(request: Request) {
 	try {
@@ -14,34 +20,50 @@ export async function GET(request: Request) {
 		const search = searchParams.get('search') || '';
 		const limit = parseInt(searchParams.get('limit') || '50');
 
-		// SQLite doesn't support mode: 'insensitive', so we use LOWER() comparison via raw filter
-		// For SQLite with libsql adapter, use simple contains without mode
-		const calls = await prisma.call.findMany({
-			where: search
-				? {
-						OR: [
-							{ caller: { contains: search } },
-							{ callerPhone: { contains: search } },
-							{ reason: { contains: search } },
-						],
-				  }
-				: undefined,
-			include: {
-				callTaker: {
-					select: {
-						id: true,
-						name: true,
-						username: true,
-					},
-				},
-			},
-			orderBy: {
-				timeStart: 'desc',
-			},
-			take: limit,
-		});
+		let calls: CallWithCallTaker[];
 
-		return NextResponse.json(calls);
+		if (search) {
+			const searchPattern = `%${search}%`;
+			calls = await query<CallWithCallTaker>(
+				`SELECT c.*, u.id as "callTakerId", u.name as "callTakerName", u.username as "callTakerUsername"
+				 FROM "Call" c
+				 JOIN "User" u ON c."callTakerId" = u.id
+				 WHERE c.caller ILIKE $1 OR c."callerPhone" ILIKE $1 OR c.reason ILIKE $1
+				 ORDER BY c."timeStart" DESC
+				 LIMIT $2`,
+				[searchPattern, limit]
+			);
+		} else {
+			calls = await query<CallWithCallTaker>(
+				`SELECT c.*, u.id as "callTakerId", u.name as "callTakerName", u.username as "callTakerUsername"
+				 FROM "Call" c
+				 JOIN "User" u ON c."callTakerId" = u.id
+				 ORDER BY c."timeStart" DESC
+				 LIMIT $1`,
+				[limit]
+			);
+		}
+
+		// Transform to match the original Prisma response format
+		const formattedCalls = calls.map((call) => ({
+			id: call.id,
+			caller: call.caller,
+			callerPhone: call.callerPhone,
+			reason: call.reason,
+			timeStart: call.timeStart,
+			timeEnd: call.timeEnd,
+			comments: call.comments,
+			callTakerId: call.callTakerId,
+			createdAt: call.createdAt,
+			updatedAt: call.updatedAt,
+			callTaker: {
+				id: call.callTakerId,
+				name: call.callTakerName,
+				username: call.callTakerUsername,
+			},
+		}));
+
+		return NextResponse.json(formattedCalls);
 	} catch (error) {
 		console.error('Error fetching calls:', error);
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -73,37 +95,66 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: 'Phone number must be exactly 10 digits' }, { status: 400 });
 		}
 
-		const call = await prisma.call.create({
-			data: {
-				caller: caller.trim(),
-				callerPhone: phoneDigits,
+		const id = crypto.randomUUID();
+		const now = new Date();
+
+		await query(
+			`INSERT INTO "Call" (id, caller, "callerPhone", reason, "timeStart", "timeEnd", comments, "callTakerId", "createdAt", "updatedAt")
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			[
+				id,
+				caller.trim(),
+				phoneDigits,
 				reason,
-				timeStart: new Date(timeStart),
-				timeEnd: timeEnd ? new Date(timeEnd) : null,
-				comments: comments || null,
-				callTakerId: session.userId,
-			},
-			include: {
-				callTaker: {
-					select: {
-						id: true,
-						name: true,
-						username: true,
-					},
-				},
-			},
-		});
+				new Date(timeStart),
+				timeEnd ? new Date(timeEnd) : null,
+				comments || null,
+				session.userId,
+				now,
+				now,
+			]
+		);
+
+		// Get the call with callTaker info
+		const call = await queryOne<CallWithCallTaker>(
+			`SELECT c.*, u.id as "callTakerId", u.name as "callTakerName", u.username as "callTakerUsername"
+			 FROM "Call" c
+			 JOIN "User" u ON c."callTakerId" = u.id
+			 WHERE c.id = $1`,
+			[id]
+		);
 
 		// Log activity
 		await logActivity({
 			action: 'CALL_CREATED',
 			description: `${session.name} logged a call from ${caller.trim()}`,
 			userId: session.userId as string,
-			targetId: call.id,
+			targetId: id,
 			targetType: 'CALL',
 		});
 
-		return NextResponse.json(call);
+		// Transform to match the original Prisma response format
+		const formattedCall = call
+			? {
+					id: call.id,
+					caller: call.caller,
+					callerPhone: call.callerPhone,
+					reason: call.reason,
+					timeStart: call.timeStart,
+					timeEnd: call.timeEnd,
+					comments: call.comments,
+					callTakerId: call.callTakerId,
+					createdAt: call.createdAt,
+					updatedAt: call.updatedAt,
+					callTaker: {
+						id: call.callTakerId,
+						name: call.callTakerName,
+						username: call.callTakerUsername,
+					},
+			  }
+			: null;
+
+		return NextResponse.json(formattedCall);
 	} catch (error) {
 		console.error('Error creating call:', error);
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

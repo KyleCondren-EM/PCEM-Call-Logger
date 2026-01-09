@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+
+interface CountResult {
+	count: string;
+}
+
+interface ReasonCount {
+	reason: string;
+	count: string;
+}
+
+interface TopCallTaker {
+	id: string;
+	name: string;
+	username: string;
+	callCount: string;
+}
 
 // Helper to check if user is admin
 async function requireAdmin() {
@@ -23,10 +39,13 @@ export async function GET() {
 		}
 
 		const now = new Date();
-		const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+		const startOfToday = new Date(now);
+		startOfToday.setHours(0, 0, 0, 0);
+
 		const startOfWeek = new Date(now);
 		startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
 		startOfWeek.setHours(0, 0, 0, 0);
+
 		const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
 		// Get last 7 days for chart data
@@ -37,87 +56,75 @@ export async function GET() {
 			return date;
 		});
 
+		// Run all queries in parallel
 		const [
-			totalUsers,
-			pendingUsers,
-			approvedUsers,
-			passwordResetRequests,
-			administrators,
-			totalCalls,
-			todayCalls,
-			weekCalls,
-			monthCalls,
+			totalUsersResult,
+			pendingUsersResult,
+			approvedUsersResult,
+			passwordResetRequestsResult,
+			administratorsResult,
+			totalCallsResult,
+			todayCallsResult,
+			weekCallsResult,
+			monthCallsResult,
 			callsByReason,
 			topCallTakers,
-			dailyCallCounts,
-			recentLogins,
+			recentLoginsResult,
 		] = await Promise.all([
-			prisma.user.count(),
-			prisma.user.count({ where: { approved: false } }),
-			prisma.user.count({ where: { approved: true } }),
-			prisma.user.count({ where: { passwordResetRequested: true } }),
-			prisma.user.count({ where: { role: 'ADMINISTRATOR' } }),
-			prisma.call.count(),
-			prisma.call.count({
-				where: { createdAt: { gte: startOfToday } },
-			}),
-			prisma.call.count({
-				where: { createdAt: { gte: startOfWeek } },
-			}),
-			prisma.call.count({
-				where: { createdAt: { gte: startOfMonth } },
-			}),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "User"`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "User" WHERE approved = false`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "User" WHERE approved = true`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "User" WHERE "passwordResetRequested" = true`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "User" WHERE role = 'ADMINISTRATOR'`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "Call"`),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "Call" WHERE "createdAt" >= $1`, [startOfToday]),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "Call" WHERE "createdAt" >= $1`, [startOfWeek]),
+			queryOne<CountResult>(`SELECT COUNT(*) as count FROM "Call" WHERE "createdAt" >= $1`, [startOfMonth]),
 			// Get calls grouped by reason
-			prisma.call.groupBy({
-				by: ['reason'],
-				_count: { reason: true },
-				orderBy: { _count: { reason: 'desc' } },
-				take: 10,
-			}),
+			query<ReasonCount>(
+				`SELECT reason, COUNT(*) as count FROM "Call" GROUP BY reason ORDER BY count DESC LIMIT 10`
+			),
 			// Get top call takers
-			prisma.user.findMany({
-				where: { approved: true },
-				select: {
-					id: true,
-					name: true,
-					username: true,
-					_count: { select: { calls: true } },
-				},
-				orderBy: { calls: { _count: 'desc' } },
-				take: 5,
-			}),
-			// Get calls per day for last 7 days
-			Promise.all(
-				last7Days.map(async (date) => {
-					const nextDay = new Date(date);
-					nextDay.setDate(nextDay.getDate() + 1);
-					const count = await prisma.call.count({
-						where: {
-							createdAt: { gte: date, lt: nextDay },
-						},
-					});
-					return {
-						date: date.toISOString().split('T')[0],
-						dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
-						count,
-					};
-				}),
+			query<TopCallTaker>(
+				`SELECT u.id, u.name, u.username, COUNT(c.id) as "callCount"
+				 FROM "User" u
+				 LEFT JOIN "Call" c ON u.id = c."callTakerId"
+				 WHERE u.approved = true
+				 GROUP BY u.id
+				 ORDER BY "callCount" DESC
+				 LIMIT 5`
 			),
 			// Get recent login activity count
-			prisma.activityLog.count({
-				where: {
-					action: 'LOGIN',
-					createdAt: { gte: startOfToday },
-				},
-			}),
+			queryOne<CountResult>(
+				`SELECT COUNT(*) as count FROM "ActivityLog" WHERE action = 'LOGIN' AND "createdAt" >= $1`,
+				[startOfToday]
+			),
 		]);
+
+		// Get calls per day for last 7 days
+		const dailyCallCounts = await Promise.all(
+			last7Days.map(async (date) => {
+				const nextDay = new Date(date);
+				nextDay.setDate(nextDay.getDate() + 1);
+				const result = await queryOne<CountResult>(
+					`SELECT COUNT(*) as count FROM "Call" WHERE "createdAt" >= $1 AND "createdAt" < $2`,
+					[date, nextDay]
+				);
+				return {
+					date: date.toISOString().split('T')[0],
+					dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+					count: parseInt(result?.count || '0', 10),
+				};
+			})
+		);
 
 		// Process reason breakdown (reasons can be comma-separated)
 		const reasonCounts: Record<string, number> = {};
 		callsByReason.forEach((item) => {
 			const reasons = item.reason.split(',').map((r) => r.trim());
+			const count = parseInt(item.count, 10);
 			reasons.forEach((reason) => {
-				reasonCounts[reason] = (reasonCounts[reason] || 0) + item._count.reason;
+				reasonCounts[reason] = (reasonCounts[reason] || 0) + count;
 			});
 		});
 		const reasonBreakdown = Object.entries(reasonCounts)
@@ -127,17 +134,17 @@ export async function GET() {
 
 		return NextResponse.json({
 			users: {
-				total: totalUsers,
-				pending: pendingUsers,
-				approved: approvedUsers,
-				passwordResetRequests: passwordResetRequests,
-				administrators: administrators,
+				total: parseInt(totalUsersResult?.count || '0', 10),
+				pending: parseInt(pendingUsersResult?.count || '0', 10),
+				approved: parseInt(approvedUsersResult?.count || '0', 10),
+				passwordResetRequests: parseInt(passwordResetRequestsResult?.count || '0', 10),
+				administrators: parseInt(administratorsResult?.count || '0', 10),
 			},
 			calls: {
-				total: totalCalls,
-				today: todayCalls,
-				week: weekCalls,
-				month: monthCalls,
+				total: parseInt(totalCallsResult?.count || '0', 10),
+				today: parseInt(todayCallsResult?.count || '0', 10),
+				week: parseInt(weekCallsResult?.count || '0', 10),
+				month: parseInt(monthCallsResult?.count || '0', 10),
 			},
 			charts: {
 				dailyCalls: dailyCallCounts,
@@ -146,11 +153,11 @@ export async function GET() {
 					id: u.id,
 					name: u.name,
 					username: u.username,
-					callCount: u._count.calls,
+					callCount: parseInt(u.callCount, 10),
 				})),
 			},
 			activity: {
-				loginsToday: recentLogins,
+				loginsToday: parseInt(recentLoginsResult?.count || '0', 10),
 			},
 		});
 	} catch (error) {

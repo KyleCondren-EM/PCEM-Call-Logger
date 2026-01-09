@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { queryOne } from '@/lib/db';
 import { createSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activityLog';
+import type { User } from '@/lib/types';
 
 export async function POST(request: Request) {
 	try {
@@ -15,9 +16,10 @@ export async function POST(request: Request) {
 		// Normalize username to uppercase for lookup (matches registration normalization)
 		const normalizedUsername = username.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-		const user = await prisma.user.findUnique({
-			where: { username: normalizedUsername },
-		});
+		const user = await queryOne<User>(
+			`SELECT * FROM "User" WHERE username = $1`,
+			[normalizedUsername]
+		);
 
 		if (!user) {
 			return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activityLog';
+import type { User, Call } from '@/lib/types';
 
 // Helper to check if user is admin
 async function requireAdmin() {
@@ -25,30 +26,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 		const { id } = await params;
 
-		const user = await prisma.user.findUnique({
-			where: { id },
-			select: {
-				id: true,
-				username: true,
-				name: true,
-				role: true,
-				approved: true,
-				approvedAt: true,
-				approvedBy: true,
-				createdAt: true,
-				updatedAt: true,
-				calls: {
-					orderBy: { createdAt: 'desc' },
-					take: 10,
-				},
-			},
-		});
+		const user = await queryOne<Omit<User, 'password' | 'tempPassword'>>(
+			`SELECT id, username, name, role, approved, "approvedAt", "approvedBy", "createdAt", "updatedAt"
+			 FROM "User" WHERE id = $1`,
+			[id]
+		);
 
 		if (!user) {
 			return NextResponse.json({ error: 'User not found' }, { status: 404 });
 		}
 
-		return NextResponse.json(user);
+		// Get last 10 calls
+		const calls = await query<Call>(
+			`SELECT * FROM "Call" WHERE "callTakerId" = $1 ORDER BY "createdAt" DESC LIMIT 10`,
+			[id]
+		);
+
+		return NextResponse.json({
+			...user,
+			calls,
+		});
 	} catch (error) {
 		console.error('Error fetching user:', error);
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -67,45 +64,50 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 		const body = await request.json();
 		const { name, role, approved } = body;
 
-		// Build update data
-		const updateData: {
-			name?: string;
-			role?: 'USER' | 'ADMINISTRATOR';
-			approved?: boolean;
-			approvedAt?: Date | null;
-			approvedBy?: string | null;
-		} = {};
+		// Build update query dynamically
+		const updates: string[] = [];
+		const values: unknown[] = [];
+		let paramIndex = 1;
 
-		if (name !== undefined) updateData.name = name;
-		if (role !== undefined) updateData.role = role;
+		if (name !== undefined) {
+			updates.push(`name = $${paramIndex++}`);
+			values.push(name);
+		}
+		if (role !== undefined) {
+			updates.push(`role = $${paramIndex++}`);
+			values.push(role);
+		}
 
 		// Handle approval
 		if (approved !== undefined) {
-			updateData.approved = approved;
+			updates.push(`approved = $${paramIndex++}`);
+			values.push(approved);
 			if (approved) {
-				updateData.approvedAt = new Date();
-				updateData.approvedBy = auth.session.userId;
+				updates.push(`"approvedAt" = $${paramIndex++}`);
+				values.push(new Date());
+				updates.push(`"approvedBy" = $${paramIndex++}`);
+				values.push(auth.session.userId);
 			} else {
-				updateData.approvedAt = null;
-				updateData.approvedBy = null;
+				updates.push(`"approvedAt" = $${paramIndex++}`);
+				values.push(null);
+				updates.push(`"approvedBy" = $${paramIndex++}`);
+				values.push(null);
 			}
 		}
 
-		const user = await prisma.user.update({
-			where: { id },
-			data: updateData,
-			select: {
-				id: true,
-				username: true,
-				name: true,
-				role: true,
-				approved: true,
-				approvedAt: true,
-				approvedBy: true,
-				createdAt: true,
-				updatedAt: true,
-			},
-		});
+		updates.push(`"updatedAt" = $${paramIndex++}`);
+		values.push(new Date());
+		values.push(id);
+
+		const user = await queryOne<Omit<User, 'password' | 'tempPassword'>>(
+			`UPDATE "User" SET ${updates.join(', ')} WHERE id = $${paramIndex}
+			 RETURNING id, username, name, role, approved, "approvedAt", "approvedBy", "createdAt", "updatedAt"`,
+			values
+		);
+
+		if (!user) {
+			return NextResponse.json({ error: 'User not found' }, { status: 404 });
+		}
 
 		// Log activity based on what was changed
 		if (approved === true) {
@@ -150,19 +152,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 		}
 
 		// Get user info before deletion for logging
-		const userToDelete = await prisma.user.findUnique({
-			where: { id },
-			select: { name: true, username: true },
-		});
+		const userToDelete = await queryOne<{ name: string; username: string }>(
+			`SELECT name, username FROM "User" WHERE id = $1`,
+			[id]
+		);
 
 		// Delete user's calls first (or reassign them)
-		await prisma.call.deleteMany({
-			where: { callTakerId: id },
-		});
+		await execute(`DELETE FROM "Call" WHERE "callTakerId" = $1`, [id]);
 
-		await prisma.user.delete({
-			where: { id },
-		});
+		await execute(`DELETE FROM "User" WHERE id = $1`, [id]);
 
 		// Log activity
 		if (userToDelete) {

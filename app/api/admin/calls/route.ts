@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import type { Call } from '@/lib/types';
+
+interface CallWithCallTaker extends Call {
+	callTakerName: string;
+	callTakerUsername: string;
+}
 
 // Helper to check if user is admin
 async function requireAdmin() {
@@ -12,6 +18,26 @@ async function requireAdmin() {
 		return { error: 'Access denied. Administrator privileges required.', status: 403 };
 	}
 	return { session };
+}
+
+function formatCall(call: CallWithCallTaker) {
+	return {
+		id: call.id,
+		caller: call.caller,
+		callerPhone: call.callerPhone,
+		reason: call.reason,
+		timeStart: call.timeStart,
+		timeEnd: call.timeEnd,
+		comments: call.comments,
+		callTakerId: call.callTakerId,
+		createdAt: call.createdAt,
+		updatedAt: call.updatedAt,
+		callTaker: {
+			id: call.callTakerId,
+			name: call.callTakerName,
+			username: call.callTakerUsername,
+		},
+	};
 }
 
 // GET - List all calls with filtering
@@ -27,51 +53,47 @@ export async function GET(request: NextRequest) {
 		const userId = searchParams.get('userId') || '';
 		const page = parseInt(searchParams.get('page') || '1');
 		const limit = parseInt(searchParams.get('limit') || '50');
+		const offset = (page - 1) * limit;
 
-		const where: {
-			callTakerId?: string;
-			OR?: Array<{
-				caller?: { contains: string };
-				callerPhone?: { contains: string };
-				reason?: { contains: string };
-				comments?: { contains: string };
-			}>;
-		} = {};
+		// Build WHERE clause
+		const conditions: string[] = [];
+		const values: unknown[] = [];
+		let paramIndex = 1;
 
 		if (userId) {
-			where.callTakerId = userId;
+			conditions.push(`c."callTakerId" = $${paramIndex++}`);
+			values.push(userId);
 		}
 
 		if (search) {
-			where.OR = [
-				{ caller: { contains: search } },
-				{ callerPhone: { contains: search } },
-				{ reason: { contains: search } },
-				{ comments: { contains: search } },
-			];
+			const searchPattern = `%${search}%`;
+			conditions.push(`(c.caller ILIKE $${paramIndex} OR c."callerPhone" ILIKE $${paramIndex} OR c.reason ILIKE $${paramIndex} OR c.comments ILIKE $${paramIndex})`);
+			values.push(searchPattern);
+			paramIndex++;
 		}
 
-		const [calls, total] = await Promise.all([
-			prisma.call.findMany({
-				where,
-				include: {
-					callTaker: {
-						select: {
-							id: true,
-							name: true,
-							username: true,
-						},
-					},
-				},
-				orderBy: { createdAt: 'desc' },
-				skip: (page - 1) * limit,
-				take: limit,
-			}),
-			prisma.call.count({ where }),
-		]);
+		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+		// Get calls with pagination
+		const calls = await query<CallWithCallTaker>(
+			`SELECT c.*, u.id as "callTakerId", u.name as "callTakerName", u.username as "callTakerUsername"
+			 FROM "Call" c
+			 JOIN "User" u ON c."callTakerId" = u.id
+			 ${whereClause}
+			 ORDER BY c."createdAt" DESC
+			 LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+			[...values, limit, offset]
+		);
+
+		// Get total count
+		const countResult = await queryOne<{ count: string }>(
+			`SELECT COUNT(*) as count FROM "Call" c ${whereClause}`,
+			values
+		);
+		const total = parseInt(countResult?.count || '0', 10);
 
 		return NextResponse.json({
-			calls,
+			calls: calls.map(formatCall),
 			pagination: {
 				page,
 				limit,

@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import type { ActivityLog } from '@/lib/activityLog';
+
+interface UserBasic {
+	id: string;
+	name: string;
+	username: string;
+}
 
 // Helper to check if user is admin
 async function requireAdmin() {
@@ -23,27 +30,42 @@ export async function GET(request: Request) {
 		}
 
 		const { searchParams } = new URL(request.url);
-		const limit = parseInt(searchParams.get('limit') || '50');
+		const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
 		const action = searchParams.get('action');
 		const userId = searchParams.get('userId');
 
-		const where: Record<string, unknown> = {};
-		if (action) where.action = action;
-		if (userId) where.userId = userId;
+		// Build WHERE clause
+		const conditions: string[] = [];
+		const values: unknown[] = [];
+		let paramIndex = 1;
 
-		const activities = await prisma.activityLog.findMany({
-			where,
-			take: Math.min(limit, 100), // Max 100
-			orderBy: { createdAt: 'desc' },
-		});
+		if (action) {
+			conditions.push(`action = $${paramIndex++}`);
+			values.push(action);
+		}
+		if (userId) {
+			conditions.push(`"userId" = $${paramIndex++}`);
+			values.push(userId);
+		}
+
+		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+		const activities = await query<ActivityLog>(
+			`SELECT * FROM "ActivityLog" ${whereClause} ORDER BY "createdAt" DESC LIMIT $${paramIndex}`,
+			[...values, limit]
+		);
 
 		// Get user names for display
 		const userIds = [...new Set(activities.map((a) => a.userId).filter(Boolean))] as string[];
-		const users = await prisma.user.findMany({
-			where: { id: { in: userIds } },
-			select: { id: true, name: true, username: true },
-		});
-		const userMap = new Map(users.map((u) => [u.id, u]));
+
+		let userMap = new Map<string, UserBasic>();
+		if (userIds.length > 0) {
+			const users = await query<UserBasic>(
+				`SELECT id, name, username FROM "User" WHERE id = ANY($1)`,
+				[userIds]
+			);
+			userMap = new Map(users.map((u) => [u.id, u]));
+		}
 
 		const activitiesWithUsers = activities.map((activity) => ({
 			...activity,

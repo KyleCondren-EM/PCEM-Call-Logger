@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -32,14 +32,15 @@ export async function POST(request: Request) {
 		const hashedPassword = await bcrypt.hash(newPassword, 10);
 
 		// Update user password and clear reset flag
-		await prisma.user.update({
-			where: { id: session.userId },
-			data: {
-				password: hashedPassword,
-				mustResetPassword: false,
-				tempPassword: null,
-			},
-		});
+		await query(
+			`UPDATE "User" SET
+				password = $1,
+				"mustResetPassword" = false,
+				"tempPassword" = NULL,
+				"updatedAt" = NOW()
+			 WHERE id = $2`,
+			[hashedPassword, session.userId]
+		);
 
 		return NextResponse.json({ message: 'Password changed successfully' });
 	} catch (error) {

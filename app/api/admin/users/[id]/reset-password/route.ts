@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query, queryOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activityLog';
 import bcrypt from 'bcryptjs';
+import type { User } from '@/lib/types';
 
 // Generate a random temporary password
 function generateTempPassword(length: number = 8): string {
@@ -30,9 +31,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 		const { id } = await params;
 
 		// Check if user exists
-		const user = await prisma.user.findUnique({
-			where: { id },
-		});
+		const user = await queryOne<User>(
+			`SELECT * FROM "User" WHERE id = $1`,
+			[id]
+		);
 
 		if (!user) {
 			return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -43,16 +45,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 		const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
 		// Update user with temporary password and flag
-		await prisma.user.update({
-			where: { id },
-			data: {
-				password: hashedPassword,
-				tempPassword: tempPassword, // Store plaintext for admin to see
-				mustResetPassword: true,
-				passwordResetRequested: false, // Clear the request flag
-				passwordResetRequestedAt: null,
-			},
-		});
+		await query(
+			`UPDATE "User" SET
+				password = $1,
+				"tempPassword" = $2,
+				"mustResetPassword" = true,
+				"passwordResetRequested" = false,
+				"passwordResetRequestedAt" = NULL,
+				"updatedAt" = NOW()
+			 WHERE id = $3`,
+			[hashedPassword, tempPassword, id]
+		);
 
 		// Log activity
 		await logActivity({
