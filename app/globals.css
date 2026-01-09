@@ -1,26 +1,773 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+:root,
+[data-theme='light'] {
+	/* Pinellas County Brand Colors */
+	--color-primary-blue: #2f4a89;
+	--color-primary-yellow: #f3d52b;
+	--color-primary-red: #c60036;
+
+	/* Secondary Colors (Strategic Plan branches) */
+	--color-secondary-purple: #6b2d8b;
+	--color-secondary-red: #da291c;
+	--color-secondary-green: #006341;
+	--color-secondary-teal: #00a499;
+	--color-secondary-gold: #fdda24;
+
+	/* Background Colors */
+	--color-bg-primary: #ffffff;
+	--color-bg-secondary: #f5f7fa;
+	--color-bg-dark: #2f4a89;
+
+	/* Text Colors */
+	--color-text-primary: #1a1a1a;
+	--color-text-secondary: #4a5568;
+	--color-text-light: #ffffff;
+	--color-text-muted: #718096;
+
+	/* State Colors */
+	--color-success: #006341;
+	--color-warning: #f3d52b;
+	--color-error: #c60036;
+	--color-info: #2f4a89;
+
+	/* Border Colors */
+	--color-border-light: #e2e8f0;
+	--color-border-medium: #cbd5e0;
+	--color-border-dark: #2f4a89;
+
+	/* Shadows using brand blue */
+	--shadow-sm: 0 1px 2px 0 rgba(47, 74, 137, 0.05);
+	--shadow-md: 0 4px 6px -1px rgba(47, 74, 137, 0.1), 0 2px 4px -1px rgba(47, 74, 137, 0.06);
+	--shadow-lg: 0 10px 15px -3px rgba(47, 74, 137, 0.1), 0 4px 6px -2px rgba(47, 74, 137, 0.05);
+	--shadow-xl: 0 20px 25px -5px rgba(47, 74, 137, 0.1), 0 10px 10px -5px rgba(47, 74, 137, 0.04);
+
+	/* Border Radius - organic shapes */
+	--radius-sm: 0.25rem;
+	--radius-md: 0.5rem;
+	--radius-lg: 1rem;
+	--radius-xl: 1.5rem;
+	--radius-full: 9999px;
+
+	/* Transitions */
+	--transition-fast: 150ms ease-in-out;
+	--transition-normal: 250ms ease-in-out;
+	--transition-slow: 350ms ease-in-out;
+
+	/* Legacy variables for compatibility */
+	--background: var(--color-bg-primary);
+	--foreground: var(--color-text-primary);
+}
+
+/* Dark Mode Theme */
+[data-theme='dark'] {
+	/* Background Colors - Dark variants */
+	--color-bg-primary: #1a1f2e;
+	--color-bg-secondary: #0f1219;
+	--color-bg-dark: #2f4a89;
+
+	/* Text Colors - High contrast for dark bg */
+	--color-text-primary: #ffffff;
+	--color-text-secondary: #e2e8f0;
+	--color-text-light: #ffffff;
+	--color-text-muted: #a0aec0;
+
+	/* Border Colors - More visible in dark mode */
+	--color-border-light: #3d4659;
+	--color-border-medium: #4d5669;
+	--color-border-dark: #4a6bc2;
+
+	/* Shadows - Darker, more subtle */
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+	--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+
+	/* Slightly brighter brand colors for dark mode visibility */
+	--color-primary-blue: #5a7bd4;
+	--color-primary-yellow: #f5dd4b;
+	--color-secondary-teal: #00d4c4;
+}
+
+/* Dark mode specific overrides for form inputs */
+[data-theme='dark'] input,
+[data-theme='dark'] textarea,
+[data-theme='dark'] select {
+	color: var(--color-text-primary) !important;
+	background-color: var(--color-bg-primary) !important;
+}
+
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder {
+	color: var(--color-text-muted) !important;
+	opacity: 1;
+}
+
+[data-theme='dark'] label {
+	color: var(--color-text-secondary) !important;
+}
+
+/* Dark mode for datetime-local inputs */
+[data-theme='dark'] input[type='datetime-local'] {
+	color-scheme: dark;
+}
+
+/* Web Awesome component dark mode overrides */
+[data-theme='dark'] {
+	/* Web Awesome CSS custom properties for dark mode */
+	--wa-color-neutral-0: #1a1f2e;
+	--wa-color-neutral-50: #1f2537;
+	--wa-color-neutral-100: #252b3d;
+	--wa-color-neutral-200: #2d3548;
+	--wa-color-neutral-300: #3d4659;
+	--wa-color-neutral-400: #4d5669;
+	--wa-color-neutral-500: #6b7280;
+	--wa-color-neutral-600: #9ca3af;
+	--wa-color-neutral-700: #d1d5db;
+	--wa-color-neutral-800: #e5e7eb;
+	--wa-color-neutral-900: #f3f4f6;
+	--wa-color-neutral-950: #f9fafb;
+	--wa-color-neutral-1000: #ffffff;
+
+	--wa-input-background-color: #1a1f2e;
+	--wa-input-background-color-hover: #252b3d;
+	--wa-input-background-color-focus: #1a1f2e;
+	--wa-input-border-color: #3d4659;
+	--wa-input-border-color-hover: #4d5669;
+	--wa-input-border-color-focus: #5a7bd4;
+	--wa-input-color: #ffffff;
+	--wa-input-placeholder-color: #9ca3af;
+	--wa-input-label-color: #e2e8f0;
+	--wa-input-help-text-color: #a0aec0;
+
+	--wa-panel-background-color: #1a1f2e;
+	--wa-panel-border-color: #3d4659;
+
+	--wa-overlay-background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* Force Web Awesome input/textarea styling in dark mode */
+[data-theme='dark'] wa-input::part(form-control-label),
+[data-theme='dark'] wa-textarea::part(form-control-label),
+[data-theme='dark'] wa-select::part(form-control-label) {
+	color: #e2e8f0;
+}
+
+[data-theme='dark'] wa-input::part(input),
+[data-theme='dark'] wa-textarea::part(textarea),
+[data-theme='dark'] wa-select::part(combobox) {
+	background-color: #1a1f2e;
+	border-color: #3d4659;
+	color: #ffffff;
+}
+
+[data-theme='dark'] wa-input::part(base),
+[data-theme='dark'] wa-textarea::part(base),
+[data-theme='dark'] wa-select::part(base) {
+	background-color: #1a1f2e;
+	border-color: #3d4659;
+	color: #ffffff;
+}
+
+[data-theme='dark'] wa-input::part(prefix),
+[data-theme='dark'] wa-input::part(suffix) {
+	color: #9ca3af;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+	/* Pinellas County Tailwind color palette */
+	--color-pc-blue: #2f4a89;
+	--color-pc-yellow: #f3d52b;
+	--color-pc-red: #c60036;
+	--color-pc-purple: #6b2d8b;
+	--color-pc-green: #006341;
+	--color-pc-teal: #00a499;
+	--color-pc-gold: #fdda24;
+
+	/* Font family - Nirmala UI with fallbacks */
+	--font-sans: 'Nirmala UI', 'Calibri', 'Segoe UI', system-ui, sans-serif;
+	--font-mono: 'Cascadia Code', 'Consolas', monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+	background: var(--color-bg-secondary);
+	color: var(--color-text-primary);
+	font-family: 'Nirmala UI', 'Calibri', 'Segoe UI', system-ui, sans-serif;
+	line-height: 1.6;
+}
+
+/* Headings - Bold as per brand guidelines */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+/* Default heading color - can be overridden with inline styles */
+h2,
+h3,
+h4,
+h5,
+h6 {
+	color: var(--color-primary-blue);
+}
+
+/* Links with brand blue */
+a {
+	color: var(--color-primary-blue);
+	transition: color var(--transition-fast);
+}
+
+a:hover {
+	color: var(--color-secondary-teal);
+}
+
+/* Focus states for accessibility (ADA compliance) */
+:focus-visible {
+	outline: 2px solid var(--color-primary-blue);
+	outline-offset: 2px;
+}
+
+/* Selection color */
+::selection {
+	background-color: var(--color-primary-blue);
+	color: var(--color-text-light);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border-medium);
+	border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-primary-blue);
+}
+
+/* SlimSelect CSS - Core Styles */
+.ss-main {
+	display: flex;
+	flex-direction: row;
+	position: relative;
+	user-select: none;
+	color: var(--color-text-primary);
+	width: 100%;
+	padding: 0 8px;
+	cursor: pointer;
+	border: 1px solid var(--color-border-light);
+	border-radius: 4px;
+	background-color: var(--color-bg-primary);
+	outline: 0;
+	box-sizing: border-box;
+	transition: background-color 0.2s, border-color 0.2s;
+	overflow: hidden;
+	min-height: 40px;
+	font-size: 14px;
+}
+.ss-main:focus {
+	border-color: var(--color-primary-blue);
+}
+.ss-main.ss-disabled {
+	cursor: not-allowed;
+	background-color: var(--color-bg-secondary);
+	opacity: 0.7;
+}
+.ss-main.ss-open-above {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+.ss-main.ss-open-below {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+.ss-main .ss-values {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	flex: 1 1 100%;
+	align-items: center;
+}
+.ss-main .ss-values .ss-placeholder {
+	display: flex;
+	padding: 4px 6px;
+	margin: 0;
+	line-height: 1.4;
+	align-items: center;
+	width: 100%;
+	color: var(--color-text-muted);
+	font-size: 14px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ss-main .ss-values .ss-max {
+	display: flex;
+	user-select: none;
+	align-items: center;
+	font-size: 13px;
+	padding: 3px 8px;
+	background-color: var(--color-bg-secondary);
+	border-radius: 4px;
+}
+.ss-main .ss-values .ss-single {
+	display: flex;
+	margin: 0;
+	padding: 4px 8px;
+}
+.ss-main .ss-values .ss-value {
+	display: flex;
+	user-select: none;
+	align-items: center;
+	font-size: 13px;
+	padding: 3px 6px;
+	margin: 0;
+	color: #fff;
+	background-color: var(--color-primary-blue);
+	border-radius: 4px;
+	animation: ss-valueIn 0.2s ease-out;
+}
+@keyframes ss-valueIn {
+	from {
+		transform: scale(0);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+.ss-main .ss-values .ss-value .ss-value-delete {
+	display: flex;
+	align-items: center;
+	padding: 0 0 0 4px;
+	margin-left: 2px;
+	border-left: 1px solid rgba(255, 255, 255, 0.3);
+	cursor: pointer;
+}
+.ss-main .ss-values .ss-value .ss-value-delete svg {
+	width: 8px;
+	height: 8px;
+}
+.ss-main .ss-values .ss-value .ss-value-delete:hover {
+	opacity: 0.7;
+}
+.ss-main .ss-deselect {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	font-weight: bold;
+	color: var(--color-text-muted);
+	cursor: pointer;
+}
+.ss-main .ss-deselect:hover {
+	color: var(--color-primary-red);
+}
+.ss-main .ss-arrow {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	margin: 0 4px;
+	cursor: pointer;
+}
+.ss-main .ss-arrow path {
+	stroke: var(--color-text-muted);
+	stroke-width: 18px;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: transform 0.2s;
+	fill: none;
+}
+.ss-main.ss-open-above .ss-arrow path,
+.ss-main.ss-open-below .ss-arrow path {
+	transform: rotate(180deg);
+	transform-origin: center;
+}
+
+/* SlimSelect Content (Dropdown) */
+.ss-content {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	width: auto;
+	max-height: 200px;
+	box-sizing: border-box;
+	border: 1px solid var(--color-border-light);
+	background-color: var(--color-bg-primary);
+	z-index: 10000;
+	box-shadow: var(--shadow-lg);
+	overflow: hidden;
+	opacity: 0;
+	transform: scaleY(0);
+	transform-origin: top;
+	transition: opacity 0.2s, transform 0.2s;
+	font-size: 13px;
+}
+.ss-content.ss-open {
+	opacity: 1;
+	transform: scaleY(1);
+}
+.ss-content.ss-open-above {
+	flex-direction: column-reverse;
+	border-radius: 4px 4px 0 0;
+	transform-origin: bottom;
+	border-bottom: none;
+}
+.ss-content.ss-open-below {
+	border-radius: 0 0 4px 4px;
+	transform-origin: top;
+	border-top: none;
+}
+.ss-content .ss-search {
+	display: flex;
+	flex-direction: row;
+	padding: 8px;
+}
+.ss-content .ss-search input {
+	display: inline-flex;
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
+	padding: 8px 12px;
+	margin: 0;
+	border: 1px solid var(--color-border-light);
+	border-radius: 4px;
+	background-color: var(--color-bg-primary);
+	color: var(--color-text-primary);
+	outline: 0;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+.ss-content .ss-search input::placeholder {
+	color: var(--color-text-muted);
+}
+.ss-content .ss-search input:focus {
+	border-color: var(--color-primary-blue);
+}
+.ss-content .ss-addable {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	cursor: pointer;
+	border-top: 1px solid var(--color-border-light);
+	color: var(--color-secondary-teal);
+	font-weight: 500;
+	font-size: 14px;
+}
+.ss-content .ss-addable:hover {
+	background-color: var(--color-primary-blue);
+	color: #fff;
+}
+.ss-content .ss-list {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+.ss-content .ss-list .ss-optgroup .ss-optgroup-label {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 12px;
+	font-weight: bold;
+	font-size: 14px;
+}
+.ss-content .ss-list .ss-option {
+	display: flex;
+	padding: 8px 12px;
+	cursor: pointer;
+	color: var(--color-text-primary);
+	font-size: 14px;
+}
+.ss-content .ss-list .ss-option:hover {
+	background-color: var(--color-primary-blue);
+	color: #fff;
+}
+.ss-content .ss-list .ss-option.ss-highlighted {
+	background-color: var(--color-primary-blue);
+	color: #fff;
+}
+.ss-content .ss-list .ss-option.ss-selected {
+	background-color: rgba(47, 74, 137, 0.1);
+}
+.ss-content .ss-list .ss-option.ss-selected:hover {
+	background-color: var(--color-primary-blue);
+	color: #fff;
+}
+.ss-content .ss-list .ss-option.ss-disabled {
+	cursor: not-allowed;
+	background-color: var(--color-bg-secondary);
+	opacity: 0.5;
+}
+.ss-content .ss-list .ss-option .ss-search-highlight {
+	background-color: var(--color-primary-yellow);
+}
+
+/* Dark mode overrides for SlimSelect */
+[data-theme='dark'] .ss-main {
+	background-color: var(--color-bg-primary);
+	border-color: var(--color-border-light);
+	color: var(--color-text-primary);
+}
+[data-theme='dark'] .ss-content {
+	background-color: var(--color-bg-primary);
+	border-color: var(--color-border-light);
+}
+[data-theme='dark'] .ss-content .ss-search input {
+	background-color: #252b3d;
+	border-color: var(--color-border-light);
+	color: var(--color-text-primary);
+}
+[data-theme='dark'] .ss-content .ss-list .ss-option {
+	color: var(--color-text-primary);
+}
+
+/* =========================================
+   Standardized Button Styles
+   ========================================= */
+
+/* Base button styles */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	border-radius: 0.5rem;
+	font-weight: 500;
+	font-size: 0.875rem;
+	transition: all var(--transition-fast);
+	cursor: pointer;
+	border: none;
+	outline: none;
+}
+
+.btn:focus-visible {
+	outline: 2px solid var(--color-primary-blue);
+	outline-offset: 2px;
+}
+
+.btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Icon styling within buttons */
+.btn wa-icon {
+	font-size: 1.1rem;
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.btn wa-spinner {
+	font-size: 1rem;
+	margin: 0;
+	flex-shrink: 0;
+}
+
+/* Primary/Brand button - Blue */
+.btn-primary {
+	background-color: var(--color-primary-blue);
+	color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+	background-color: #243a6e;
+}
+
+/* Success/Save button - Green */
+.btn-success {
+	background-color: var(--color-secondary-green);
+	color: #ffffff;
+}
+
+.btn-success:hover:not(:disabled) {
+	background-color: #004d31;
+}
+
+/* Danger/Cancel/Delete button - Red filled */
+.btn-danger {
+	background-color: var(--color-primary-red);
+	color: #ffffff;
+}
+
+.btn-danger:hover:not(:disabled) {
+	background-color: #a30030;
+}
+
+/* Danger outline button - Red border */
+.btn-danger-outline {
+	background-color: transparent;
+	color: var(--color-primary-red);
+	border: 2px solid var(--color-primary-red);
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+	background-color: rgba(198, 0, 54, 0.1);
+}
+
+/* Neutral/Secondary button */
+.btn-neutral {
+	background-color: var(--color-bg-secondary);
+	color: var(--color-text-primary);
+	border: 2px solid var(--color-border-light);
+}
+
+.btn-neutral:hover:not(:disabled) {
+	background-color: var(--color-primary-blue);
+	color: #ffffff;
+	border-color: var(--color-primary-blue);
+}
+
+/* Ghost button - minimal styling */
+.btn-ghost {
+	background-color: transparent;
+	color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+	background-color: var(--color-bg-secondary);
+	color: var(--color-text-primary);
+}
+
+/* Button sizes */
+.btn-sm {
+	padding: 0.25rem 0.75rem;
+	font-size: 0.75rem;
+}
+
+.btn-sm wa-icon {
+	font-size: 0.875rem;
+}
+
+.btn-lg {
+	padding: 0.75rem 1.5rem;
+	font-size: 1rem;
+}
+
+.btn-lg wa-icon {
+	font-size: 1.25rem;
+}
+
+/* Full width button */
+.btn-full {
+	width: 100%;
+}
+
+/* Icon-only button */
+.btn-icon {
+	padding: 0.5rem;
+	aspect-ratio: 1;
+}
+
+/* Dark mode button adjustments */
+[data-theme='dark'] .btn-neutral {
+	background-color: var(--color-bg-secondary);
+	border-color: var(--color-border-light);
+}
+
+[data-theme='dark'] .btn-neutral:hover:not(:disabled) {
+	background-color: var(--color-primary-blue);
+	color: #ffffff;
+	border-color: var(--color-primary-blue);
+}
+
+[data-theme='dark'] .btn-danger-outline {
+	background-color: transparent;
+}
+
+[data-theme='dark'] .btn-danger-outline:hover:not(:disabled) {
+	background-color: rgba(198, 0, 54, 0.2);
+}
+
+/* =========================================
+   Modal Styles
+   ========================================= */
+
+/* Modal header - remove margins from headings */
+.modal-header h3,
+.modal-header h2,
+.modal-header h4 {
+	margin: 0 !important;
+	padding: 0 !important;
+	line-height: 1.2 !important;
+}
+
+/* Modal header title */
+.modal-title {
+	margin: 0 !important;
+	padding: 0 !important;
+	line-height: 1.2 !important;
+}
+
+.modal-title wa-icon {
+	margin-right: 0.5rem !important;
+}
+
+/* =========================================
+   Filter Chip Styles
+   ========================================= */
+
+.filter-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.75rem;
+	border-radius: 9999px;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all var(--transition-fast);
+	border: 1px solid var(--color-border-light);
+	background-color: var(--color-bg-secondary);
+	color: var(--color-text-secondary);
+}
+
+.filter-chip:hover {
+	border-color: var(--color-primary-blue);
+	color: var(--color-primary-blue);
+}
+
+.filter-chip.active {
+	background-color: var(--color-primary-blue);
+	border-color: var(--color-primary-blue);
+	color: #ffffff;
+}
+
+.filter-chip wa-icon {
+	font-size: 0.875rem;
+	margin: 0;
+}
+
+[data-theme='dark'] .filter-chip {
+	background-color: var(--color-bg-secondary);
+	border-color: var(--color-border-light);
+}
+
+[data-theme='dark'] .filter-chip:hover {
+	border-color: var(--color-primary-blue);
+}
+
+[data-theme='dark'] .filter-chip.active {
+	background-color: var(--color-primary-blue);
+	border-color: var(--color-primary-blue);
 }

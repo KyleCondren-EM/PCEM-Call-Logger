@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Role enum for user permissions
+enum Role {
+  USER
+  ADMINISTRATOR
+}
+
+model User {
+  id                     String    @id @default(uuid())
+  username               String    @unique
+  password               String
+  name                   String
+  email                  String?
+  phone                  String?
+  jobTitle               String?
+  department             String?
+  profileImage           String?   // Base64 encoded image or URL
+  role                   Role      @default(USER)
+  approved               Boolean   @default(false)
+  approvedAt             DateTime?
+  approvedBy             String?
+  mustResetPassword      Boolean   @default(false)
+  tempPassword           String?   // Temporary password set by admin
+  passwordResetRequested Boolean   @default(false) // User requested password reset
+  passwordResetRequestedAt DateTime? // When the reset was requested
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  calls                  Call[]
+}
+
+model Call {
+  id          String    @id @default(uuid())
+  caller      String
+  callerPhone String
+  reason      String
+  timeStart   DateTime
+  timeEnd     DateTime?
+  comments    String?
+  callTakerId String
+  callTaker   User      @relation(fields: [callTakerId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([callTakerId])
+  @@index([timeStart])
+}
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  action      String    // e.g., "LOGIN", "LOGOUT", "CALL_CREATED", "USER_APPROVED", "PASSWORD_RESET"
+  description String
+  userId      String?   // The user who performed the action (null for system actions)
+  targetId    String?   // The target of the action (e.g., call ID, user ID)
+  targetType  String?   // Type of target (e.g., "CALL", "USER")
+  ipAddress   String?
+  userAgent   String?
+  metadata    String?   // JSON string for additional data
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
