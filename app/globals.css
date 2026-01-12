@@ -314,7 +314,7 @@ a:hover {
 	font-size: 14px;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	white-space: wrap;
 }
 .ss-main .ss-values .ss-max {
 	display: flex;
