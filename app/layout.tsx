@@ -14,6 +14,9 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang='en' suppressHydrationWarning>
+			<head>
+				<link rel='icon' href='/icons/pcem_logo-white_bg.png' />
+			</head>
 			<body className='antialiased' suppressHydrationWarning>
 				<WebAwesomeProvider projectCode={process.env.NEXT_PUBLIC_WEBAWESOME_PROJECT_CODE}>
 					{children}

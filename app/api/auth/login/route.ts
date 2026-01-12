@@ -3,10 +3,30 @@ import bcrypt from 'bcryptjs';
 import { queryOne } from '@/lib/db';
 import { createSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activityLog';
+import { checkRateLimit, getClientIP, rateLimiters } from '@/lib/rateLimit';
 import type { User } from '@/lib/types';
 
 export async function POST(request: Request) {
 	try {
+		// Rate limit check
+		const clientIP = getClientIP(request);
+		const rateLimit = checkRateLimit(`login:${clientIP}`, rateLimiters.login);
+
+		if (!rateLimit.success) {
+			return NextResponse.json(
+				{ error: `Too many login attempts. Please try again in ${rateLimit.retryAfter} seconds.` },
+				{
+					status: 429,
+					headers: {
+						'Retry-After': String(rateLimit.retryAfter),
+						'X-RateLimit-Limit': String(rateLimiters.login.limit),
+						'X-RateLimit-Remaining': String(rateLimit.remaining),
+						'X-RateLimit-Reset': String(rateLimit.resetAt),
+					},
+				}
+			);
+		}
+
 		const { username, password } = await request.json();
 
 		if (!username || !password) {

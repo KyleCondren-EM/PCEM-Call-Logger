@@ -1,11 +1,34 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
+import { checkRateLimit, getClientIP, rateLimiters } from '@/lib/rateLimit';
 
 // POST - Request a password reset (user-initiated, works logged in or with username)
 export async function POST(request: Request) {
 	try {
+		// Rate limit check (skip if user is logged in)
 		const session = await getSession();
+
+		if (!session) {
+			const clientIP = getClientIP(request);
+			const rateLimit = checkRateLimit(`password-reset:${clientIP}`, rateLimiters.passwordReset);
+
+			if (!rateLimit.success) {
+				return NextResponse.json(
+					{ error: `Too many password reset requests. Please try again in ${rateLimit.retryAfter} seconds.` },
+					{
+						status: 429,
+						headers: {
+							'Retry-After': String(rateLimit.retryAfter),
+							'X-RateLimit-Limit': String(rateLimiters.passwordReset.limit),
+							'X-RateLimit-Remaining': String(rateLimit.remaining),
+							'X-RateLimit-Reset': String(rateLimit.resetAt),
+						},
+					}
+				);
+			}
+		}
+
 		let userId: string | undefined;
 
 		if (session) {

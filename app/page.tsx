@@ -57,7 +57,7 @@ interface User {
 	passwordResetRequested?: boolean;
 }
 
-type CallFilter = 'all' | 'my-calls' | 'today' | 'this-week' | 'has-comments';
+type CallFilter = 'all' | 'my-calls' | 'today' | 'this-week' | 'has-comments' | 'custom';
 
 export default function Home() {
 	const router = useRouter();
@@ -75,6 +75,9 @@ export default function Home() {
 	const [exporting, setExporting] = useState(false);
 	const [showPasswordResetConfirm, setShowPasswordResetConfirm] = useState(false);
 	const [passwordResetLoading, setPasswordResetLoading] = useState(false);
+	const [dateFrom, setDateFrom] = useState('');
+	const [dateTo, setDateTo] = useState('');
+	const [showDateFilter, setShowDateFilter] = useState(false);
 	const callsPerPage = 5;
 
 	// Modal states
@@ -330,21 +333,65 @@ export default function Home() {
 		return dateOnly >= weekAgo && dateOnly <= todayOnly;
 	};
 
+	// Check if date is within custom range
+	const isInDateRange = (dateString: string) => {
+		if (!dateFrom && !dateTo) return true;
+		const date = new Date(dateString);
+		const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+		if (dateFrom) {
+			const from = new Date(dateFrom);
+			const fromOnly = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+			if (dateOnly < fromOnly) return false;
+		}
+		if (dateTo) {
+			const to = new Date(dateTo);
+			const toOnly = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+			if (dateOnly > toOnly) return false;
+		}
+		return true;
+	};
+
 	// Apply filters to calls
 	const filteredCalls = calls.filter((call) => {
+		// First apply the active filter
+		let passesFilter = true;
 		switch (activeFilter) {
 			case 'my-calls':
-				return call.callTaker.id === user?.userId;
+				passesFilter = call.callTaker.id === user?.userId;
+				break;
 			case 'today':
-				return isToday(call.timeStart);
+				passesFilter = isToday(call.timeStart);
+				break;
 			case 'this-week':
-				return isThisWeek(call.timeStart);
+				passesFilter = isThisWeek(call.timeStart);
+				break;
 			case 'has-comments':
-				return call.comments && call.comments.trim().length > 0;
+				passesFilter = !!(call.comments && call.comments.trim().length > 0);
+				break;
+			case 'custom':
+				passesFilter = isInDateRange(call.timeStart);
+				break;
 			case 'all':
 			default:
-				return true;
+				passesFilter = true;
 		}
+		if (!passesFilter) return false;
+
+		// Apply search filter
+		if (search.trim()) {
+			const searchLower = search.toLowerCase();
+			const matchesCaller = call.caller.toLowerCase().includes(searchLower);
+			const matchesPhone = call.callerPhone.includes(search.replace(/\D/g, ''));
+			const matchesReason = call.reason.toLowerCase().includes(searchLower);
+			const matchesComments = call.comments?.toLowerCase().includes(searchLower);
+			const matchesCallTaker = call.callTaker.name.toLowerCase().includes(searchLower);
+			if (!matchesCaller && !matchesPhone && !matchesReason && !matchesComments && !matchesCallTaker) {
+				return false;
+			}
+		}
+
+		return true;
 	});
 
 	// Sort calls by most recent first and paginate
@@ -358,7 +405,7 @@ export default function Home() {
 	// Reset to page 1 when search or filter changes
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [search, activeFilter]);
+	}, [search, activeFilter, dateFrom, dateTo]);
 
 	if (!mounted) {
 		return (
@@ -675,6 +722,15 @@ export default function Home() {
 										<wa-icon name='comment' />
 										Has Comments
 									</button>
+									<button
+										onClick={() => {
+											setShowDateFilter(!showDateFilter);
+											if (!showDateFilter) setActiveFilter('custom');
+										}}
+										className={`filter-chip ${activeFilter === 'custom' ? 'active' : ''}`}>
+										<wa-icon name='calendar-range' />
+										Date Range
+									</button>
 									{/* Export Button */}
 									<button
 										onClick={exportToCSV}
@@ -690,6 +746,75 @@ export default function Home() {
 										Export
 									</button>
 								</div>
+								{/* Date Range Filter */}
+								{showDateFilter && (
+									<div
+										className='flex flex-wrap items-center gap-3 mt-3 p-3 rounded-lg'
+										style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+										<div className='flex items-center gap-2'>
+											<label
+												htmlFor='dateFrom'
+												className='text-sm font-medium'
+												style={{ color: 'var(--color-text-muted)' }}>
+												From:
+											</label>
+											<input
+												type='date'
+												id='dateFrom'
+												value={dateFrom}
+												onChange={(e) => {
+													setDateFrom(e.target.value);
+													setActiveFilter('custom');
+												}}
+												className='px-3 py-1.5 rounded-md text-sm'
+												style={{
+													border: '1px solid var(--color-border-light)',
+													backgroundColor: 'var(--color-bg-primary)',
+													color: 'var(--color-text-primary)',
+												}}
+											/>
+										</div>
+										<div className='flex items-center gap-2'>
+											<label
+												htmlFor='dateTo'
+												className='text-sm font-medium'
+												style={{ color: 'var(--color-text-muted)' }}>
+												To:
+											</label>
+											<input
+												type='date'
+												id='dateTo'
+												value={dateTo}
+												onChange={(e) => {
+													setDateTo(e.target.value);
+													setActiveFilter('custom');
+												}}
+												className='px-3 py-1.5 rounded-md text-sm'
+												style={{
+													border: '1px solid var(--color-border-light)',
+													backgroundColor: 'var(--color-bg-primary)',
+													color: 'var(--color-text-primary)',
+												}}
+											/>
+										</div>
+										{(dateFrom || dateTo) && (
+											<button
+												onClick={() => {
+													setDateFrom('');
+													setDateTo('');
+													setActiveFilter('all');
+												}}
+												className='px-3 py-1.5 text-sm rounded-md'
+												style={{
+													backgroundColor: 'var(--color-red)',
+													color: 'white',
+												}}>
+												<wa-icon name='xmark' style={{ marginRight: '0.25rem' }} />
+												Clear
+											</button>
+										)}
+									</div>
+								)}
 							</div>
 
 							<div className='p-3 flex-1 flex flex-col'>
@@ -989,7 +1114,7 @@ export default function Home() {
 									Pinellas County Government
 								</div>
 								<div className='text-xs' style={{ color: 'rgba(255,255,255,0.8)' }}>
-									Office of Emergency Management
+									Emergency Management
 								</div>
 							</div>
 						</div>
@@ -1010,7 +1135,7 @@ export default function Home() {
 								rel='noopener noreferrer'
 								className='text-xs font-medium hover:underline'
 								style={{ color: 'var(--color-primary-yellow)' }}>
-								www.pinellascounty.org
+								www.pinellas.gov
 							</a>
 							<div className='text-xs mt-1' style={{ color: 'rgba(255,255,255,0.6)' }}>
 								© {new Date().getFullYear()} Pinellas County

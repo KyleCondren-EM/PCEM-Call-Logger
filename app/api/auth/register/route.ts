@@ -1,10 +1,30 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, queryOne } from '@/lib/db';
+import { checkRateLimit, getClientIP, rateLimiters } from '@/lib/rateLimit';
 import type { User } from '@/lib/types';
 
 export async function POST(request: Request) {
 	try {
+		// Rate limit check
+		const clientIP = getClientIP(request);
+		const rateLimit = checkRateLimit(`register:${clientIP}`, rateLimiters.register);
+
+		if (!rateLimit.success) {
+			return NextResponse.json(
+				{ error: `Too many registration attempts. Please try again in ${rateLimit.retryAfter} seconds.` },
+				{
+					status: 429,
+					headers: {
+						'Retry-After': String(rateLimit.retryAfter),
+						'X-RateLimit-Limit': String(rateLimiters.register.limit),
+						'X-RateLimit-Remaining': String(rateLimit.remaining),
+						'X-RateLimit-Reset': String(rateLimit.resetAt),
+					},
+				}
+			);
+		}
+
 		const { username, password, name } = await request.json();
 
 		if (!username || !password || !name) {

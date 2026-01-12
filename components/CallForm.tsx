@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Reason options with Web Awesome icons
 const REASON_OPTIONS = [
@@ -50,6 +50,63 @@ export default function CallForm({ onSuccess }: CallFormProps) {
 	const [comments, setComments] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
+
+	// Call timer state
+	const [callInProgress, setCallInProgress] = useState(false);
+	const [elapsedSeconds, setElapsedSeconds] = useState(0);
+	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const startTimeRef = useRef<Date | null>(null);
+
+	// Timer effect
+	useEffect(() => {
+		if (callInProgress && startTimeRef.current) {
+			timerRef.current = setInterval(() => {
+				const now = new Date();
+				const elapsed = Math.floor((now.getTime() - startTimeRef.current!.getTime()) / 1000);
+				setElapsedSeconds(elapsed);
+			}, 1000);
+		} else {
+			if (timerRef.current) {
+				clearInterval(timerRef.current);
+				timerRef.current = null;
+			}
+		}
+		return () => {
+			if (timerRef.current) {
+				clearInterval(timerRef.current);
+			}
+		};
+	}, [callInProgress]);
+
+	// Format elapsed time as HH:MM:SS
+	const formatElapsedTime = (seconds: number) => {
+		const hrs = Math.floor(seconds / 3600);
+		const mins = Math.floor((seconds % 3600) / 60);
+		const secs = seconds % 60;
+		if (hrs > 0) {
+			return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+		}
+		return `${mins}:${secs.toString().padStart(2, '0')}`;
+	};
+
+	// Start call timer
+	const startCall = () => {
+		const now = new Date();
+		startTimeRef.current = now;
+		const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+		setTimeStart(localDateTime);
+		setTimeEnd('');
+		setElapsedSeconds(0);
+		setCallInProgress(true);
+	};
+
+	// End call timer
+	const endCall = () => {
+		const now = new Date();
+		const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+		setTimeEnd(localDateTime);
+		setCallInProgress(false);
+	};
 
 	const toggleReason = (value: string) => {
 		setReasons((prev) => (prev.includes(value) ? prev.filter((r) => r !== value) : [...prev, value]));
